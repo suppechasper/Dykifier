@@ -9,7 +9,7 @@ Shiny app for hallucinating dykes.
 3. In R run the commands:
     1. install.packages( c("shiny", "RColorBrewer", "devtools") )
     2. library("devtools")
-    3. devtools::install_github( "suppechasper/Dykifier") )
+    3. devtools::install_github( "suppechasper/Dykifier" )
      
     
 ## Running ##
