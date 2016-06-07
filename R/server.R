@@ -93,10 +93,7 @@ dykifier.server <- function(input,output,session){
       ranges$x <<- c(brush$xmin, brush$xmax)
       ranges$y <<- c(brush$ymin, brush$ymax)
 
-    } else {
-      ranges$x <<- NULL
-      ranges$y <<- NULL
-    }
+    } 
   })
 
   output$dykes.zoom <- renderPlot({
