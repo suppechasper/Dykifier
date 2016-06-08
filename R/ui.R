@@ -15,7 +15,7 @@ fluidPage(
         sliderInput("d.ext", "Distance:", min=0, max=100, step = 0.5, value=3),
         sliderInput("a.ext", "Angle:", min=0, max=1, step = 0.001, value=0.1),
         plotOutput("histogram", height=180),
-        sliderInput("p.thres", "Probability:", min=0, max=0.2, step = 0.005, value=0.2),
+        sliderInput("p.thres", "Probability:", min=0, max=0.2, step = 0.005, value=0.06),
         actionButton("update", label = "Apply Changes")
       )
     )
