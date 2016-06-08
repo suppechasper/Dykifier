@@ -11,4 +11,5 @@ URL: https://github.com/suppechasper/Dykifier
 BugReports: https://github.com/suppechasper/Dykifier/issues
 Imports:
   shiny,
-  RColorBrewer
+  RColorBrewer,
+  inline

@@ -3,6 +3,7 @@
 
 
 dykifier.server <- function(input,output,session){
+  library("inline")
 
   X <- c()
   for(i in 1:length(segments) ){
@@ -20,53 +21,125 @@ dykifier.server <- function(input,output,session){
 
 
   intersection.probs <- reactive({
-    input$update
 
-    d.ext <- isolate( input$d.ext )
+    input$update
     a.ext <- isolate( input$a.ext )
-    dn <- 1 / ( sqrt(2*pi)*d.ext)
     an <- 1 / ( sqrt(2*pi)*a.ext)
     
-    dv <- 2*d.ext^2
     av <- 2*a.ext^2
     
     withProgress(message = 'Updating probabilities', value = 0, {
-    
-    p <- matrix(NA, ncol=ncol(angles1), nrow=nrow(angles1) )
-    for(i in 1:nrow(angles1) ){
-      #incProgress( 1 / nrow(angles1) )
+  
+     
+
+    k <- ncol(angles1)
+    na <- nrow(angles1)
+    p <- matrix(NA, ncol=3, nrow = k*na )
+
+    index <- 1
+    for(i in 1:na ){
+      incProgress( 0.5 / na )
+      si = i %% length(segments)
+      if(si==0){
+        si = length(segments)
+      }
+      d.ext <- sdevs[si, 1] * isolate( input$d.ext )
+      dv <- 2*d.ext^2
+      dn <- 1 / ( sqrt(2*pi)*d.ext)
       pd <- dn * exp( -  dists[i,]^2 / dv )
       pa1 <- av * exp( - (angles1[i, ] - 1)^2 / av )
       pa2 <- av * exp( - (angles2[i, ] - 1)^2 / av )
-      p[i, ] <- pd*pa1*pa2
+      #p[i, ] <- pd*pa1*pa2
+      p[index:(index+k-1), ] <- cbind(pd*pa1*pa2, rep(i, k), KNN$nn.index[i, ] )
+
+      index <- index+k
     }
     
     })
-    p <- p / max(p, na.rm=TRUE)
-    #updateSliderInput(session, "p.thres", value = 0.5*pm, max = pm, step=pm/100)
-    porder <-  t(apply(-p,1,order))
-    list(p=p, porder=porder)
+
+    porder <- order(p[,1], decreasing=TRUE)
+    segs <-  matrix(NA, ncol=5, nrow=na )
+
+    cpp_segs_src <- '
+      Rcpp::IntegerVector porder(po);
+      Rcpp::NumericMatrix p(probs);
+      Rcpp::NumericMatrix segs(hsegs);
+      Rcpp::NumericMatrix coords(x);
+      int np = porder.size();
+      int na = segs.nrow();
+      bool *used = new bool[na];
+      for(int i=0; i<na; i++){
+        used[i] = false;
+      }
+      int index = 0;
+    
+      for(int i=0; i<np; i++){
+        int i1 = p(porder[i]-1, 1)-1;
+        if( used[i1] ){
+          continue;
+        }
+        int i2 = p(porder[i]-1, 2)-1;
+        if( used[i2] ){
+          continue;
+        }
+      
+        segs(index, 0) = p( porder[i]-1, 0);
+        segs(index, 1) = coords(i1, 0);
+        segs(index, 2) = coords(i1, 1);
+        segs(index, 3) = coords(i2, 0);
+        segs(index, 4) = coords(i2, 1);
+        used[i1] = true;
+        used[i2] = true;
+        index++; 
+     }
+     delete[] used;
+     return segs;
+   '
+   cpp_segs <- cxxfunction(
+                   signature(po="integer", probs="matrix", 
+                             hsegs="matrix", x="matrix" ), 
+                   cpp_segs_src, plugin="Rcpp")
+
+
+
+   segs <- cpp_segs(porder, p, segs, coords)
+   
+   # used <- rep(FALSE, na )
+   # index <- 1
+   # for(i in 1:length(porder) ){
+   #   incProgress( 0.5 / (k*na) )
+   #   i1 <- p[porder[i], 2]
+   #   if( used[i1] ){
+   #     next
+   #   }
+   #   i2 <- p[porder[i], 3]
+   #   if( used[i2] ){
+   #     next
+   #   }
+   #   segs[index, ] <- c( p[ porder[i], 1], coords[i1, ], coords[i2, ] )
+   #   used[i1] = TRUE
+   #   used[i2] = TRUE
+   #   index <- index+1
+  #  }
+
+  #  })
+
+    segs <- segs[complete.cases(segs), ]
+    segs[,1] <- segs[,1] / max(segs[,1])
+    segs
   })
+
+
 
   intersection.selected <- reactive({
-    input$update
 
-    p <- intersection.probs()
-    x <- list()
-    index <- 1
-    withProgress(message = 'Updating selection', value = 0, {
-    for(i in 1:nrow(p$p)){
-      incProgress( 1 / nrow(p$p) )
-      if( p$p[i, p$porder[i,1] ] >= isolate(input$p.thres) ){
-        x[[index]] = rbind( coords[i, ], 
-                            coords[ KNN$nn.ind[i, p$porder[i, 1] ], ]
-                          )
-        index <- index +1
-      } 
-    }
-    })
-    x
+    segs <- intersection.probs()
+    segs <- segs[ which( segs[,1] >= input$p.thres ) , ]
+
+    segs
   })
+
+
 
   ## Dykes plot ##
   output$dykes <- renderPlot({
@@ -74,10 +147,8 @@ dykifier.server <- function(input,output,session){
     for( i in 1:length(segments) ){
       lines( segments[[i]],  col=tcolors[type[i]] )
     }
-     
-    for(segs in intersection.selected() ){
-      lines( segs, col="gray" )
-    } 
+    hsegs <- intersection.selected()
+    segments( hsegs[,2], hsegs[, 3], hsegs[,4], hsegs[,5], col="gray") 
    # for(i in 1:nrow(dirs) ){
    #    l1 <- rbind(  3 * sdevs[i,1]*dirs[i,] + means[i,] ,
    #           -3 * sdevs[i,1]*dirs[i,] + means[i,] )
@@ -96,29 +167,34 @@ dykifier.server <- function(input,output,session){
     } 
   })
 
+
+
   output$dykes.zoom <- renderPlot({
     plot(X, pch=".", asp=1, xlim = ranges$x, ylim = ranges$y, xlab="x", ylab="y")
     for( i in 1:length(segments) ){
-      lines( segments[[i]],  col=tcolors[type[i]] )
+      lines( segments[[i]],  col=tcolors[type[i]], lwd=3 )
     }
     #for(i in 1:nrow(dirs) ){
     #   l1 <- rbind(  3 * sdevs[i,1]*dirs[i,] + means[i,] ,
     #          -3 * sdevs[i,1]*dirs[i,] + means[i,] )
     #    lines(l1, col="#FF990075" )
     #}
-    for(segs in intersection.selected()  ){
-      lines( segs, col="gray" )
-    }
+    hsegs <- intersection.selected()
+    segments( hsegs[,2], hsegs[, 3], hsegs[,4], hsegs[,5], col="gray", lwd=2) 
 
 
   })
 
+
+
   output$histogram <- renderPlot({
-    p <- intersection.probs()
-    hist(p$p[1:nrow(p$p) + nrow(p$p)*( p$porder[, 1]-1  )], 100, 
-         main="", xlab="Probability")
+    par(mar=c(3,3,1,1) )
+    hsegs <- intersection.probs()
+    hist(hsegs[,1], 200, main="", xlab="Probability")
     abline(v=input$p.thres)
   }) 
+
+
 
 }
 

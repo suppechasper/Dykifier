@@ -12,10 +12,10 @@ fluidPage(
         plotOutput( "dykes.zoom", width=500, height=500)
       ),
       column(4, 
-        sliderInput("d.ext", "Distance:", min=0, max=2000, step = 10, value=1000),
+        sliderInput("d.ext", "Distance:", min=0, max=100, step = 0.5, value=3),
         sliderInput("a.ext", "Angle:", min=0, max=1, step = 0.001, value=0.1),
-        plotOutput("histogram"),
-        sliderInput("p.thres", "Probability:", min=0, max=1, step = 0.01, value=0.2),
+        plotOutput("histogram", height=180),
+        sliderInput("p.thres", "Probability:", min=0, max=0.2, step = 0.005, value=0.2),
         actionButton("update", label = "Apply Changes")
       )
     )
