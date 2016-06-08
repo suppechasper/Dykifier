@@ -4,6 +4,8 @@
 
 dykifier.server <- function(input,output,session){
   library("inline")
+  threshold <- reactiveValues()
+  threshold$value <- 0.02
 
   X <- c()
   for(i in 1:length(segments) ){
@@ -134,7 +136,7 @@ dykifier.server <- function(input,output,session){
   intersection.selected <- reactive({
 
     segs <- intersection.probs()
-    segs <- segs[ which( segs[,1] >= input$p.thres ) , ]
+    segs <- segs[ which( segs[,1] >= threshold$value ) , ]
 
     segs
   })
@@ -188,11 +190,27 @@ dykifier.server <- function(input,output,session){
 
 
   output$histogram <- renderPlot({
-    par(mar=c(3,3,1,1) )
+    par(mar=c(4,4,1,1) )
     hsegs <- intersection.probs()
     hist(hsegs[,1], 200, main="", xlab="Probability")
-    abline(v=input$p.thres)
-  }) 
+    abline(v=threshold$value)
+  })
+
+  ob.hclick <- observeEvent(input$h_click, {
+    if( !is.null( input$h_click) ){
+      ev <- input$h_click
+      threshold$value <- input$h_click$x
+    }
+  })
+
+  output$lhistogram <- renderPlot({
+    par(mar=c(4,4,1,1) )
+    hsegs <- intersection.selected()
+    xd <- hsegs[,2] - hsegs[,4]
+    yd <- hsegs[,3] - hsegs[,5]
+    ls <- sqrt(xd^2 + yd^2)
+    hist(ls, 100, main="", xlab="Lengths")
+  })  
 
 
 
