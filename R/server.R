@@ -128,6 +128,7 @@ dykifier.server <- function(input,output,session){
 
     segs <- segs[complete.cases(segs), ]
     segs[,1] <- segs[,1] / max(segs[,1])
+    colnames(segs) <- c("Probability", "x1", "y1", "x2", "y2")
     segs
   })
 
@@ -209,10 +210,15 @@ dykifier.server <- function(input,output,session){
     xd <- hsegs[,2] - hsegs[,4]
     yd <- hsegs[,3] - hsegs[,5]
     ls <- sqrt(xd^2 + yd^2)
-    hist(ls, 100, main="", xlab="Lengths")
+    hist(ls, input$nbins, main="", xlab="Lengths")
   })  
 
 
+  output$downloadData <- downloadHandler( "phantom-dikes.csv",
+    content = function(file) {
+      write.csv(intersection.selected(),  file)
+    }
+  )
 
 }
 

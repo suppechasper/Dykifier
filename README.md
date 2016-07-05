@@ -17,7 +17,7 @@ Shiny app for hallucinating dykes.
 1. Start R.
 2. In R run the commands:
    1. library(Dykifier)
-   2. dykify()
+   2. dykify() for a subset, or dykify("intersections") for the whole data set
 
 
 The plot on the left shows an overview. By dragging an area a zoomed in version
