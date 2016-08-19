@@ -34,9 +34,10 @@ dykifier.server <- function(input,output,session){
   
      
 
+    ns <- length(segments)
     k <- ncol(angles1)
     na <- nrow(angles1)
-    p <- matrix(NA, ncol=3, nrow = k*na )
+    p <- matrix( NA, ncol=5, nrow = k*na )
 
     index <- 1
     for(i in 1:na ){
@@ -46,21 +47,26 @@ dykifier.server <- function(input,output,session){
         si = length(segments)
       }
       d.ext <- sdevs[si, 1] * isolate( input$d.ext )
-      dv <- 2*d.ext^2
-      dn <- 1 / ( sqrt(2*pi)*d.ext)
-      pd <- dn * exp( -  dists[i,]^2 / dv )
+      dv  <- 2*d.ext^2
+      dn  <- 1 / ( sqrt(2*pi)*d.ext )
+      pd  <- dn * exp( -  dists[i,]^2 / dv )
       pa1 <- av * exp( - (angles1[i, ] - 1)^2 / av )
       pa2 <- av * exp( - (angles2[i, ] - 1)^2 / av )
       #p[i, ] <- pd*pa1*pa2
-      p[index:(index+k-1), ] <- cbind(pd*pa1*pa2, rep(i, k), KNN$nn.index[i, ] )
+      p[index:(index+k-1), ] <- cbind(pd*pa1*pa2, rep(i, k),
+                                                  KNN$nn.index[i, ],
+                                                  rep(i, k) %% ns, 
+                                                  KNN$nn.index[i, ]  %% ns )
 
       index <- index+k
     }
-    
+    p[ p[, 4] == 0, 4 ] = ns
+    p[ p[, 5] == 0, 5 ] = ns
+
     })
 
     porder <- order(p[,1], decreasing=TRUE)
-    segs <-  matrix(NA, ncol=5, nrow=na )
+    segs <-  matrix(NA, ncol=7, nrow=na )
 
     cpp_segs_src <- '
       Rcpp::IntegerVector porder(po);
@@ -90,6 +96,8 @@ dykifier.server <- function(input,output,session){
         segs(index, 2) = coords(i1, 1);
         segs(index, 3) = coords(i2, 0);
         segs(index, 4) = coords(i2, 1);
+        segs(index, 5) = p( porder[i]-1, 3 );
+        segs(index, 6) = p( porder[i]-1, 4 );        
         used[i1] = true;
         used[i2] = true;
         index++; 
@@ -105,6 +113,7 @@ dykifier.server <- function(input,output,session){
 
 
    segs <- cpp_segs(porder, p, segs, coords)
+   
    
    # used <- rep(FALSE, na )
    # index <- 1
@@ -128,7 +137,7 @@ dykifier.server <- function(input,output,session){
 
     segs <- segs[complete.cases(segs), ]
     segs[,1] <- segs[,1] / max(segs[,1])
-    colnames(segs) <- c("Probability", "x1", "y1", "x2", "y2")
+    colnames(segs) <- c("Probability", "x1", "y1", "x2", "y2", "sid1", "sid2")
     segs
   })
 
@@ -142,6 +151,30 @@ dykifier.server <- function(input,output,session){
     segs
   })
 
+  intersection.selected.connected <- reactive({
+
+    segs <- intersection.selected()
+    id.segs <- rep( NA, length(segments) )
+    id.ph <- rep( NA, nrow(segs) )
+    did <- 0
+    for( i in 1:nrow(segs) ){
+      cid <- NA
+      if( !is.na(id.segs[ segs[i,6] ]) ){
+        cid = segs[i,6]
+      }
+      if( !is.na(id.segs[ segs[i,7] ]) ){
+        cid = segs[i,7]
+      }
+      if( is.na(cid) ){
+        did <- did + 1 
+        cid <- did
+      }
+      id.ph[i] = cid
+      id.segs[ segs[i,6] ] = cid
+      id.segs[ segs[i,7] ]= cid
+    }
+    list( ndykes = cid, id.segs = id.segs, id.ph = id.ph )
+  })
 
 
   ## Dykes plot ##
@@ -210,7 +243,7 @@ dykifier.server <- function(input,output,session){
     xd <- hsegs[,2] - hsegs[,4]
     yd <- hsegs[,3] - hsegs[,5]
     ls <- sqrt(xd^2 + yd^2)
-    hist(ls, input$nbins, main="", xlab="Lengths")
+    hist(ls, input$nbins, main="", xlab="Phantom Dikes Lengths")
   })  
 
 
@@ -219,6 +252,17 @@ dykifier.server <- function(input,output,session){
       write.csv(intersection.selected(),  file)
     }
   )
+
+  output$ndykes.info <- renderText({ 
+      cdykes <- intersection.selected.connected()
+      paste("Number of connected dykes: ", cdykes$ndykes )
+  })
+    
+  output$nsegs.info <- renderText({ 
+      cdykes <- intersection.selected.connected()
+      paste("Number of individual segments: ", sum( is.na(cdykes$id.segs) ) )
+  })
+
 
 }
 

@@ -1,14 +1,14 @@
-process.data <- function(){
+process.data <- function(infile = "data.mat", outfile="intersections.rda"){
 
   library(R.matlab)
   library(FNN)
-  X <- readMat("data.mat")
+  X <- readMat(infile)
 
   xlb <- -Inf #440000
   xub <- Inf #490000
   ylb <- -Inf #4990000
   yub <- Inf #5040000
-  fname <- "intersections.Rdata"
+  fname <- outfile
 
   dims <- dim(X$D)
 
@@ -60,10 +60,10 @@ process.data <- function(){
   coords <- rbind(c1, c2) 
   KNN <- get.knn( coords, k)
 
-
   angles1 <- matrix(NA, ncol=k, nrow=nrow(KNN$nn.dist) )
   angles2 <- matrix(NA, ncol=k, nrow=nrow(KNN$nn.dist) )
-  dists <- matrix(NA, ncol=k, nrow=nrow(KNN$nn.dist) )
+  dists   <- matrix(NA, ncol=k, nrow=nrow(KNN$nn.dist) )
+
   for(i in 1:nrow(dists)  ){
     angle <- rep(NA, k) 
     dist <- rep(NA, k) 
