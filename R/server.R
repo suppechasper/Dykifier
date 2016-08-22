@@ -5,7 +5,8 @@
 dykifier.server <- function(input,output,session){
   library("inline")
   threshold <- reactiveValues()
-  threshold$value <- 0.02
+  threshold$pvalue <- 0.02
+  threshold$lvalue <- -0.01
 
   X <- c()
   for(i in 1:length(segments) ){
@@ -146,10 +147,13 @@ dykifier.server <- function(input,output,session){
   intersection.selected <- reactive({
 
     segs <- intersection.probs()
-    segs <- segs[ which( segs[,1] >= threshold$value ) , ]
+    segs <- segs[ which( segs[,1] >= threshold$pvalue ) , ]
 
     segs
   })
+
+
+
 
   intersection.selected.connected <- reactive({
 
@@ -159,11 +163,23 @@ dykifier.server <- function(input,output,session){
     did <- 0
     for( i in 1:nrow(segs) ){
       cid <- NA
-      if( !is.na(id.segs[ segs[i,6] ]) ){
-        cid = segs[i,6]
+      if( !is.na( id.segs[ segs[i,6] ]) ){
+        cid = id.segs[ segs[i,6] ]
       }
-      if( !is.na(id.segs[ segs[i,7] ]) ){
-        cid = segs[i,7]
+      if( !is.na( id.segs[ segs[i,7] ]) ){
+        if( !is.na(cid) ){
+          #replace with single id
+          eid <- id.segs[ segs[i,7] ]
+          ind <- which(id.segs == eid)
+          id.segs[ind] = cid
+          ind <- which(id.ph == eid)
+          if(length(ind) > 0 ){
+            id.ph[ind] = cid
+          }
+        }
+        else{
+          cid = id.segs[ segs[i,7] ]
+        }
       }
       if( is.na(cid) ){
         did <- did + 1 
@@ -171,25 +187,56 @@ dykifier.server <- function(input,output,session){
       }
       id.ph[i] = cid
       id.segs[ segs[i,6] ] = cid
-      id.segs[ segs[i,7] ]= cid
+      id.segs[ segs[i,7] ] = cid
     }
-    list( ndykes = cid, id.segs = id.segs, id.ph = id.ph )
+    ndykes = length( unique(id.segs) )
+    
+    for( i in 1:length(id.segs) ){
+      if( is.na( id.segs[i] ) ){
+        did = did+1
+        id.segs[i] = did
+      }
+    }
+
+    dlengths = rep(0, did+1)
+    for(i in 1:did){
+      ind <- which(id.ph == i)
+      if(length(ind) > 0 ){
+        xd <- (segs[ind,2] - segs[ind,4])^2
+        yd <- (segs[ind,3] - segs[ind,5])^2
+        dlengths[i] <- sqrt( sum(xd+yd) )
+      }
+      ind <- which(id.segs == i)
+      if(length(ind) > 0 ){
+        dlengths[i] <- dlengths[i] + sum(slength[ind] )
+      }
+    }
+    
+    list( ndykes = ndykes, nsegs = length( unique(id.segs) ) - ndykes, id.segs = id.segs, 
+          id.ph = id.ph, dlengths = dlengths )
   })
+
+
 
 
   ## Dykes plot ##
   output$dykes <- renderPlot({
     plot(X, pch=".", asp=1, xlab="x", ylab="y")
+    
+    csegs <- intersection.selected.connected()
+
     for( i in 1:length(segments) ){
-      lines( segments[[i]],  col=tcolors[type[i]] )
+      if( csegs$dlengths[ csegs$id.segs[i] ] > threshold$lvalue ){ 
+        lines( segments[[i]],  col=tcolors[type[i]], lwd=3 )
+      }
     }
+
     hsegs <- intersection.selected()
-    segments( hsegs[,2], hsegs[, 3], hsegs[,4], hsegs[,5], col="gray") 
-   # for(i in 1:nrow(dirs) ){
-   #    l1 <- rbind(  3 * sdevs[i,1]*dirs[i,] + means[i,] ,
-   #           -3 * sdevs[i,1]*dirs[i,] + means[i,] )
-   #     lines(l1, col="#FF990075" )
-   # }
+    for( i in 1:nrow(hsegs) ){
+      if( csegs$dlengths[ csegs$id.ph[i] ] > threshold$lvalue){
+        segments( hsegs[i,2], hsegs[i, 3], hsegs[i,4], hsegs[i,5], col="gray", lwd=2) 
+      }
+    }
 
   })
 
@@ -207,17 +254,20 @@ dykifier.server <- function(input,output,session){
 
   output$dykes.zoom <- renderPlot({
     plot(X, pch=".", asp=1, xlim = ranges$x, ylim = ranges$y, xlab="x", ylab="y")
+    
+    csegs <- intersection.selected.connected()
     for( i in 1:length(segments) ){
-      lines( segments[[i]],  col=tcolors[type[i]], lwd=3 )
+      if( csegs$dlengths[csegs$id.segs[i]] > threshold$lvalue ){ 
+        lines( segments[[i]],  col=tcolors[type[i]], lwd=3 )
+      }
     }
-    #for(i in 1:nrow(dirs) ){
-    #   l1 <- rbind(  3 * sdevs[i,1]*dirs[i,] + means[i,] ,
-    #          -3 * sdevs[i,1]*dirs[i,] + means[i,] )
-    #    lines(l1, col="#FF990075" )
-    #}
-    hsegs <- intersection.selected()
-    segments( hsegs[,2], hsegs[, 3], hsegs[,4], hsegs[,5], col="gray", lwd=2) 
 
+    hsegs <- intersection.selected()
+    for( i in 1:nrow(hsegs) ){
+      if(csegs$dlengths[csegs$id.ph[i] ] > threshold$lvalue ){
+        segments( hsegs[i,2], hsegs[i, 3], hsegs[i,4], hsegs[i,5], col="gray", lwd=2) 
+      }
+    }
 
   })
 
@@ -227,13 +277,13 @@ dykifier.server <- function(input,output,session){
     par(mar=c(4,4,1,1) )
     hsegs <- intersection.probs()
     hist(hsegs[,1], 200, main="", xlab="Probability")
-    abline(v=threshold$value)
+    abline(v=threshold$pvalue)
   })
 
   ob.hclick <- observeEvent(input$h_click, {
     if( !is.null( input$h_click) ){
       ev <- input$h_click
-      threshold$value <- input$h_click$x
+      threshold$pvalue <- input$h_click$x
     }
   })
 
@@ -243,9 +293,22 @@ dykifier.server <- function(input,output,session){
     xd <- hsegs[,2] - hsegs[,4]
     yd <- hsegs[,3] - hsegs[,5]
     ls <- sqrt(xd^2 + yd^2)
-    hist(ls, input$nbins, main="", xlab="Phantom Dikes Lengths")
+    hist(ls, input$nlbins, main="", xlab="Phantom Segment Lengths")
   })  
 
+  output$dhistogram <- renderPlot({
+    par(mar=c(4,4,1,1) )
+    dsegs <- intersection.selected.connected()
+    hist(dsegs$dlengths, input$ndbins, main="", xlab="Dike Lengths")
+    abline(v=threshold$lvalue)
+  })
+
+  ob.dhclick <- observeEvent(input$dh_click, {
+    if( !is.null( input$dh_click) ){
+      ev <- input$dh_click
+      threshold$lvalue <- input$dh_click$x
+    }
+  })  
 
   output$downloadData <- downloadHandler( "phantom-dikes.csv",
     content = function(file) {
@@ -260,7 +323,7 @@ dykifier.server <- function(input,output,session){
     
   output$nsegs.info <- renderText({ 
       cdykes <- intersection.selected.connected()
-      paste("Number of individual segments: ", sum( is.na(cdykes$id.segs) ) )
+      paste("Number of disconnected segments left: ", cdykes$nsegs )
   })
 
 

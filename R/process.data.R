@@ -17,16 +17,17 @@ process.data <- function(infile = "data.mat", outfile="intersections.rda"){
   means <- matrix( NA, ncol=2, nrow=dims[2] )
   dirs <- matrix( NA, ncol=2, nrow=dims[2] )
   sdevs <- matrix( NA, ncol=2, nrow=dims[2] )
+  slength <- rep(0, dims[2] )
   rtype <- c()
   #impl <- matrix(NA, ncol=3, nrow=dims[2])
-  index <- 1;
+  index <- 1
   for(i in 1:dims[2] ){
     if( min(X$D[,i,1]$X, na.rm=TRUE ) > xlb & 
        max(X$D[,i,1]$X, na.rm=TRUE ) < xub & 
        min(X$D[,i,1]$Y, na.rm=TRUE ) > ylb & 
        max(X$D[,i,1]$Y, na.rm=TRUE ) < yub ){ 
       segments[[index]] <- cbind( t(X$D[,i,1]$X), t(X$D[,i,1]$Y) )
-      segments[[index]] <- segments[[index]][complete.cases(segments[[index]]), ]
+      segments[[index]] <- segments[[index]][ complete.cases(segments[[index]]), ]
       pca <- prcomp(segments[[index]])
       means[i,] <- pca$center
       dirs[i, ] <- pca$rotation[,1]
@@ -35,8 +36,15 @@ process.data <- function(infile = "data.mat", outfile="intersections.rda"){
       #l <- dirs[i, ] %*% segm
       #sdevs[i, ] <- max(l) - min(l)
       sdevs[i, ] <- pca$sdev
-      index <- index + 1
       rtype[index] = X$D[,i,1]$host.rock
+
+      for( j in 2:nrow( segments[[index]] ) ){
+        slength[i] = slength[i] + sqrt( sum( (segments[[index]][j, ] 
+                                            - segments[[index]][j-1, ] )^2 ) )
+
+      }
+      
+      index <- index + 1
     }
     #impl[i, ] = c( pca$rotation[,2], -pca$rotation[,2] %*% means[i, ] )
   }
@@ -44,6 +52,7 @@ process.data <- function(infile = "data.mat", outfile="intersections.rda"){
   means <- means[complete.cases(means), ]
   dirs <- dirs[complete.cases(dirs), ]
   sdevs <- sdevs[complete.cases(sdevs), ]
+  slength <- slength[ !is.na(slength) ]
 
   ns <- length(segments)
 
@@ -96,6 +105,7 @@ process.data <- function(infile = "data.mat", outfile="intersections.rda"){
     }
   }
 
-  save( segments, means, dirs, sdevs, KNN, dists, angles1, angles2, coords, file=fname )
+  save( segments, means, dirs, sdevs, KNN, dists, angles1, angles2, coords,
+       slength, file=fname )
 
 }

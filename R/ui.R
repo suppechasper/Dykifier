@@ -22,7 +22,9 @@ fluidPage(
         hr(),
         plotOutput("histogram", height=180, click = "h_click"),
         plotOutput("lhistogram", height=240),
-        sliderInput("nbins", "#bins:", min=10, max=200, step = 1, value=100)
+        sliderInput("nlbins", "#bins:", min=10, max=200, step = 1, value=100),
+        plotOutput("dhistogram", height=240, click = "dh_click"),
+        sliderInput("ndbins", "#bins:", min=10, max=200, step = 1, value=100)
       )
     )
 )
