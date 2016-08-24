@@ -106,6 +106,6 @@ process.data <- function(infile = "data.mat", outfile="intersections.rda"){
   }
 
   save( segments, means, dirs, sdevs, KNN, dists, angles1, angles2, coords,
-       slength, file=fname )
+       slength, rtype, file=fname )
 
 }
